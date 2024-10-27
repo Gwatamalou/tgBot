@@ -13,7 +13,7 @@ from util import load_prompt, load_message
 router = Router()
 chat_gpt = ChatGptServices()
 
-
+#машины состояний
 class GptState(StatesGroup):
     active = State()
 
@@ -32,8 +32,12 @@ class TranslatorState(StatesGroup):
 class IdeaState(StatesGroup):
     active = State()
 
+
 @router.message(CommandStart())
 async def start(msg: Message):
+    """
+    Обработчик команды /start отправляет список команд сообщением
+    """
     image = FSInputFile("resources/images/main.jpg")
     message = load_message('main')
     await msg.answer_photo(photo=image, caption=message)
@@ -42,6 +46,9 @@ async def start(msg: Message):
 
 @router.message(Command('random'))
 async def random(msg: Message):
+    """
+    Обработчик команды /random отправляет случайный факт сообщением
+    """
     image = FSInputFile("resources/images/random.jpg")
 
     await msg.answer_photo(photo=image)
@@ -55,6 +62,9 @@ async def random(msg: Message):
 
 @router.message(Command('gpt'))
 async def gpt(msg: Message, state: FSMContext):
+    """
+    Обработчик команды /gpt переводит бот в режим свободного общения с chatGPT
+    """
     await state.set_state(GptState.active)
 
     image = FSInputFile("resources/images/gpt.jpg")
@@ -67,18 +77,29 @@ async def gpt(msg: Message, state: FSMContext):
 
 @router.callback_query(F.data=='exit_gpt')
 async def exit_gpt(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработчик кнопки выхода из режимов общения с chatGPT
+    """
     await state.clear()
     await start(callback.message)
 
 
 @router.message(Command('talk'))
 async def talk(msg: Message):
+    """
+    Обработчик команды /talk возвращает список известных личностей
+    """
     await msg.answer('Выберите известную личность', reply_markup=keyboards.inline_famous_person_button)
 
 
 
 @router.callback_query(F.data.startswith('talk_'))
 async def talk(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработчик кнопки выбора известной личности.
+    Переводит бот в режим общения с известной личностью в chatGPT
+    """
+
     await state.set_state(TalkState.active)
 
     prompt = load_prompt(callback.data)
@@ -102,6 +123,9 @@ async def talk(callback: CallbackQuery, state: FSMContext):
 
 @router.message(Command('quiz'))
 async def quiz(msg: Message, state: FSMContext):
+    """
+    Обработчик команды /quiz переводит бот в режим викторины с chatGPT
+    """
     await state.set_state(QuizState.active)
     prompt = load_prompt('quiz')
     image = FSInputFile(f"resources/images/quiz.jpg")
@@ -114,6 +138,9 @@ async def quiz(msg: Message, state: FSMContext):
 
 @router.message(Command('translator'))
 async def translator(msg: Message, state: FSMContext):
+    """
+    Обработчик команды /translator переводит бот в режим переводчика с chatGPT
+    """
     await state.set_state(TalkState.active)
     prompt = load_prompt('translator')
     image = FSInputFile(f"resources/images/translator.jpg")
@@ -125,6 +152,9 @@ async def translator(msg: Message, state: FSMContext):
 
 @router.message(Command('idea'))
 async def idea(msg: Message, state: FSMContext):
+    """
+    Обработчик команды /idea переводит бот в режим генератора идей с chatGPT
+    """
     await state.set_state(IdeaState.active)
     prompt = load_prompt('idea')
     image = FSInputFile(f"resources/images/idea.jpg")
@@ -134,6 +164,9 @@ async def idea(msg: Message, state: FSMContext):
 
 @router.message()
 async def text_handler(msg: Message, state: FSMContext):
+    """
+    Обработчик текстовых сообщений по состоя́нию.
+    """
     if await state.get_state() == GptState.active:
         answer = await chat_gpt.add_message(msg.text)
         await msg.answer(answer, reply_markup=keyboards.inline_exit_button)
