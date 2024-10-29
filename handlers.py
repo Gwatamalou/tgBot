@@ -141,7 +141,7 @@ async def translator(msg: Message, state: FSMContext):
     """
     Обработчик команды /translator переводит бот в режим переводчика с chatGPT
     """
-    await state.set_state(TalkState.active)
+    await state.set_state(TranslatorState.active)
     prompt = load_prompt('translator')
     image = FSInputFile(f"resources/images/translator.jpg")
     chat_gpt.set_prompt(prompt)
@@ -189,7 +189,7 @@ async def text_handler(msg: Message, state: FSMContext):
 
         await msg.answer(answer, reply_markup=keyboards.inline_exit_button)
 
-    elif await state.get_state() == TalkState.active:
+    elif await state.get_state() == TranslatorState.active:
         answer = await chat_gpt.add_message(msg.text)
         await msg.answer(answer, reply_markup=keyboards.inline_exit_button)
 
