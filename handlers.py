@@ -1,70 +1,56 @@
-
 from aiogram import Router, F
 from aiogram.types import Message, FSInputFile, CallbackQuery
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
-
+from stateMachines import *
 
 import keyboards
 from gpt import ChatGptServices
-from util import load_prompt, load_message
+from util import load_prompt, load_message, send_answer
 
 router = Router()
 chat_gpt = ChatGptServices()
 
-#машины состояний
-class GptState(StatesGroup):
-    active = State()
-
-
-class TalkState(StatesGroup):
-    active = State()
-
-
-class QuizState(StatesGroup):
-    active = State()
-
-
-class TranslatorState(StatesGroup):
-    active = State()
-
-class IdeaState(StatesGroup):
-    active = State()
-
 
 @router.message(CommandStart())
-async def start(msg: Message):
+async def start(msg: Message, state: FSMContext):
     """
     Обработчик команды /start отправляет список команд сообщением
     """
+    await state.clear()
+
     image = FSInputFile("resources/images/main.jpg")
     message = load_message('main')
+
     await msg.answer_photo(photo=image, caption=message)
 
 
-
 @router.message(Command('random'))
-async def random(msg: Message):
+async def random(msg: Message, state: FSMContext):
     """
     Обработчик команды /random отправляет случайный факт сообщением
     """
+    await state.clear()
+
     image = FSInputFile("resources/images/random.jpg")
 
     await msg.answer_photo(photo=image)
     message = await msg.answer('чат gpt думает...')
 
     prompt = load_prompt('random')
+
     answer = await chat_gpt.send_question(prompt, '')
     await message.edit_text(answer)
-
 
 
 @router.message(Command('gpt'))
 async def gpt(msg: Message, state: FSMContext):
     """
     Обработчик команды /gpt переводит бот в режим свободного общения с chatGPT
+
     """
+    await state.clear()
+
     await state.set_state(GptState.active)
 
     image = FSInputFile("resources/images/gpt.jpg")
@@ -75,22 +61,33 @@ async def gpt(msg: Message, state: FSMContext):
     await msg.answer_photo(photo=image, caption=message, reply_markup=keyboards.inline_exit_button)
 
 
-@router.callback_query(F.data=='exit_gpt')
+@router.message(GptState.active)
+async def gpt(msg: Message):
+    message = await msg.answer('чат gpt думает...')
+    await send_answer(msg, message, chat_gpt)
+
+@router.callback_query(F.data == 'exit_gpt')
 async def exit_gpt(callback: CallbackQuery, state: FSMContext):
     """
     Обработчик кнопки выхода из режимов общения с chatGPT
     """
     await state.clear()
-    await start(callback.message)
+    await start(callback.message, state)
 
 
 @router.message(Command('talk'))
-async def talk(msg: Message):
+async def talk(msg: Message,  state: FSMContext):
     """
     Обработчик команды /talk возвращает список известных личностей
     """
+    await state.clear()
     await msg.answer('Выберите известную личность', reply_markup=keyboards.inline_famous_person_button)
 
+
+@router.message(TalkState.active)
+async def talk(msg: Message):
+    message = await msg.answer(f'{TalkState.person} отвечает...')
+    await send_answer(msg, message, chat_gpt)
 
 
 @router.callback_query(F.data.startswith('talk_'))
@@ -106,19 +103,17 @@ async def talk(callback: CallbackQuery, state: FSMContext):
     image = FSInputFile(f"resources/images/{callback.data}.jpg")
 
     chat_gpt.set_prompt(prompt)
-    if callback.data == 'talk_cobain':
-        message = 'Курт Кобейн - Солист группы Nirvana 🎸'
-    elif callback.data == 'talk_queen':
-        message = 'Елизавета II - Королева Соединённого Королевства 👑'
-    elif callback.data == 'talk_tolkien':
-        message = 'Джон Толкиен - Автор книги "Властелин Колец" 📖'
-    elif callback.data == 'talk_nietzsche':
-        message = 'Фридрих Ницше - Философ 🧠'
-    elif callback.data == 'talk_hawking':
-        message = 'Стивен Хокинг - Физик 🔬'
+    person = {
+        'talk_cobain': 'Курт Кобейн - Солист группы Nirvana 🎸',
+        'talk_queen': 'Елизавета II - Королева Соединённого Королевства 👑',
+        'talk_tolkien': 'Джон Толкиен - Автор книги "Властелин Колец" 📖',
+        'talk_nietzsche': 'Фридрих Ницше - Философ 🧠',
+        'talk_hawking': 'Стивен Хокинг - Физик 🔬',
+    }
 
+    message = person[callback.data]
+    TalkState.person = message[:message.find("-")-1]
     await callback.message.answer_photo(photo=image, caption=message, reply_markup=keyboards.inline_exit_button)
-
 
 
 @router.message(Command('quiz'))
@@ -126,14 +121,43 @@ async def quiz(msg: Message, state: FSMContext):
     """
     Обработчик команды /quiz переводит бот в режим викторины с chatGPT
     """
-    await state.set_state(QuizState.active)
+    await state.clear()
+    await state.set_state(QuizState.question)
     prompt = load_prompt('quiz')
     image = FSInputFile(f"resources/images/quiz.jpg")
     message = load_message('quiz')
 
     chat_gpt.set_prompt(prompt)
 
-    await msg.answer_photo(photo=image, caption=message, reply_markup=keyboards.inline_quiz_button)
+    await msg.answer_photo(photo=image, caption=message, reply_markup=keyboards.reply_quiz_button)
+
+
+@router.message(QuizState.question)
+async def quiz(msg: Message, state: FSMContext):
+    theme = {
+        'программирования на языке python': 'quiz_prog',
+        'теорий алгоритмов, теории множеств и матанализа': 'quiz_math',
+        'биология': 'quiz_biology',
+        'вопрос на ту же тему': 'quiz_more',
+    }
+    if msg.text in theme:
+        message = await msg.answer('чат gpt придумывает вопрос...')
+        answer = await chat_gpt.add_message(theme[msg.text])
+        await state.clear()
+        await state.set_state(QuizState.result)
+        await message.edit_text(answer, reply_markup=keyboards.inline_exit_button)
+    else:
+        answer = 'Выберите тему'
+        await msg.answer(answer, reply_markup=keyboards.inline_exit_button)
+
+
+@router.message(QuizState.result)
+async def quiz(msg: Message, state: FSMContext):
+    message = await msg.answer('чат gpt проверяет ответ...')
+    await send_answer(msg, message, chat_gpt)
+    await state.clear()
+    await state.set_state(QuizState.question)
+    await msg.answer("Выберите следующую тему", reply_markup=keyboards.reply_quiz_button)
 
 
 @router.message(Command('translator'))
@@ -141,13 +165,19 @@ async def translator(msg: Message, state: FSMContext):
     """
     Обработчик команды /translator переводит бот в режим переводчика с chatGPT
     """
+    await state.clear()
     await state.set_state(TranslatorState.active)
     prompt = load_prompt('translator')
     image = FSInputFile(f"resources/images/translator.jpg")
     chat_gpt.set_prompt(prompt)
 
-    await msg.answer_photo(photo=image, caption="Введите текс для перевода и укажите язык для перевода\n"
-                                                "(по умолчанию Английский/Русский)")
+    await msg.answer_photo(photo=image, caption="Введите язык на который хотите переводить")
+
+
+@router.message(TranslatorState.active)
+async def translator(msg: Message):
+    message = await msg.answer('чат gpt думает...')
+    await send_answer(msg, message, chat_gpt)
 
 
 @router.message(Command('idea'))
@@ -155,46 +185,24 @@ async def idea(msg: Message, state: FSMContext):
     """
     Обработчик команды /idea переводит бот в режим генератора идей с chatGPT
     """
+    await state.clear()
     await state.set_state(IdeaState.active)
     prompt = load_prompt('idea')
     image = FSInputFile(f"resources/images/idea.jpg")
+
     chat_gpt.set_prompt(prompt)
 
-    await msg.answer_photo(photo=image, caption='Задайте тему или область интересов')
+    await msg.answer_photo(photo=image, caption='Введите тему чтобы получить список идей')
+
+
+@router.message(IdeaState.active)
+async def idea(msg: Message):
+    message = await msg.answer('чат gpt думает...')
+    await send_answer(msg, message, chat_gpt)
 
 @router.message()
-async def text_handler(msg: Message, state: FSMContext):
+async def echo(msg: Message):
     """
-    Обработчик текстовых сообщений по состоя́нию.
+    Эхо
     """
-    if await state.get_state() == GptState.active:
-        answer = await chat_gpt.add_message(msg.text)
-        await msg.answer(answer, reply_markup=keyboards.inline_exit_button)
-
-    elif await state.get_state() == TalkState.active:
-        answer = await chat_gpt.add_message(msg.text)
-        await msg.answer(answer, reply_markup=keyboards.inline_exit_button)
-
-    elif await state.get_state() == QuizState.active:
-        if msg.text == 'программирования на языке python':
-            answer = await chat_gpt.add_message('quiz_prog')
-        elif msg.text == 'теорий алгоритмов, теории множеств и матанализа':
-            answer = await chat_gpt.add_message('quiz_math')
-        elif msg.text == 'биология':
-            answer = await chat_gpt.add_message('quiz_biology')
-        elif msg.text == 'вопрос на ту же тему':
-            answer = await chat_gpt.add_message('quiz_more')
-        else:
-            answer = await chat_gpt.add_message(msg.text)
-
-        await msg.answer(answer, reply_markup=keyboards.inline_exit_button)
-
-    elif await state.get_state() == TranslatorState.active:
-        answer = await chat_gpt.add_message(msg.text)
-        await msg.answer(answer, reply_markup=keyboards.inline_exit_button)
-
-    elif await state.get_state() == IdeaState.active:
-        answer = await chat_gpt.add_message(msg.text)
-        await msg.answer(answer, reply_markup=keyboards.inline_exit_button)
-    else:
-        await msg.answer(msg.text)
+    await msg.answer(msg.text)

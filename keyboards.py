@@ -10,16 +10,21 @@ inline_famous_person_button = InlineKeyboardMarkup(inline_keyboard=[
 ],
 )
 
-inline_quiz_button = ReplyKeyboardMarkup(keyboard=[
+reply_quiz_button = ReplyKeyboardMarkup(keyboard=[
     [KeyboardButton(text='программирования на языке python')],
     [KeyboardButton(text='теорий алгоритмов, теории множеств и матанализа')],
     [KeyboardButton(text='биология')],
     [KeyboardButton(text='вопрос на ту же тему')],
 ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+    selective=True
 )
 
 inline_exit_button =InlineKeyboardMarkup(
     inline_keyboard=[
+
         [InlineKeyboardButton(text='закончить', callback_data='exit_gpt')]
     ]
+
 )

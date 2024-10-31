@@ -10,7 +10,6 @@ class ChatGptServices:
 
     def __init__(self):
         token = "sk-proj-" + ChatGPT_TOKEN[:3:-1] if ChatGPT_TOKEN.startswith('gpt:') else ChatGPT_TOKEN
-        print(token)
         self.client = OpenAI(
             http_client=httpx.Client(
                 proxies='http://18.199.183.77:49232'),
@@ -20,7 +19,7 @@ class ChatGptServices:
 
     async def send_message_list(self) -> str:
         completion = self.client.chat.completions.create(
-            model='gpt-3.5-turbo',
+            model='gpt-4-turbo', # gpt-4o,  gpt-4-turbo,    gpt-3.5-turbo,  GPT-4o mini
             messages=self.message_list,
             max_tokens=3000,
             temperature=0.9
