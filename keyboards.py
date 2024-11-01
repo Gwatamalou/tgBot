@@ -26,5 +26,5 @@ inline_exit_button =InlineKeyboardMarkup(
 
         [InlineKeyboardButton(text='закончить', callback_data='exit_gpt')]
     ]
-
 )
+

@@ -1,5 +1,5 @@
 import keyboards
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardMarkup, ReplyKeyboardMarkup
 
 
 def load_prompt(name):
@@ -14,7 +14,6 @@ def load_message(name):
         return file.read()
 
 async def send_answer(msg: Message, message, chat_gpt):
+
     answer = await chat_gpt.add_message(msg.text)
     await message.edit_text(answer, reply_markup=keyboards.inline_exit_button)
-
-    # await msg.answer(answer, reply_markup=keyboards.inline_exit_button)
